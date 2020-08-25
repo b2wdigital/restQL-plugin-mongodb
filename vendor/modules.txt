@@ -1,4 +1,4 @@
-# github.com/b2wdigital/restQL-golang/v4 v4.0.0-rc100 => ../restQL-golang
+# github.com/b2wdigital/restQL-golang/v4 v4.0.0-rc101
 ## explicit
 github.com/b2wdigital/restQL-golang/v4/internal/domain
 github.com/b2wdigital/restQL-golang/v4/pkg/restql
@@ -6,7 +6,8 @@ github.com/b2wdigital/restQL-golang/v4/pkg/restql
 github.com/go-stack/stack
 # github.com/golang/snappy v0.0.1
 github.com/golang/snappy
-# github.com/klauspost/compress v1.10.5
+# github.com/klauspost/compress v1.10.11
+## explicit
 github.com/klauspost/compress/fse
 github.com/klauspost/compress/huff0
 github.com/klauspost/compress/snappy
@@ -52,11 +53,14 @@ go.mongodb.org/mongo-driver/x/mongo/driver/session
 go.mongodb.org/mongo-driver/x/mongo/driver/topology
 go.mongodb.org/mongo-driver/x/mongo/driver/uuid
 go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage
-# golang.org/x/crypto v0.0.0-20200406173513-056763e48d71
+# golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
+## explicit
 golang.org/x/crypto/pbkdf2
-# golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
+# golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
+## explicit
 golang.org/x/sync/semaphore
 # golang.org/x/text v0.3.2
 golang.org/x/text/transform
 golang.org/x/text/unicode/norm
-# github.com/b2wdigital/restQL-golang/v4 => ../restQL-golang
+# golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
+## explicit
