@@ -1,4 +1,4 @@
-module gitlab.internal.b2w.io/team/restql/restql-golang-plugin-mongodb.git
+module github.com/b2wdigital/restQL-plugin-mongodb
 
 go 1.14
 
