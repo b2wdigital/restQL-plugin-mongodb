@@ -2,6 +2,7 @@ package restql_mongodb
 
 import (
 	"context"
+	"fmt"
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"os"
@@ -125,9 +126,18 @@ func (md *mongoDatabase) FindMappingsForTenant(ctx context.Context, tenantId str
 	var t tenant
 
 	collection := md.client.Database(md.databaseName).Collection("tenant")
-	err := collection.FindOne(ctx, bson.M{"_id": tenantId}).Decode(&t)
+	singleResult := collection.FindOne(ctx, bson.M{"_id": tenantId})
+	err := singleResult.Err()
+	switch {
+	case err == mongo.ErrNoDocuments:
+		return nil, fmt.Errorf("%w: tenant %s", restql.ErrMappingsNotFoundInDatabase, tenantId)
+	case err != nil:
+		return nil, fmt.Errorf("%w: %s", restql.ErrDatabaseCommunicationFailed, err)
+	}
+
+	err = singleResult.Decode(&t)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %s", restql.ErrMappingsNotFoundInDatabase, err)
 	}
 
 	i := 0
@@ -157,13 +167,23 @@ func (md mongoDatabase) FindQuery(ctx context.Context, namespace string, name st
 	var q query
 
 	collection := md.client.Database(md.databaseName).Collection("query")
-	err := collection.FindOne(ctx, bson.M{"name": name, "namespace": namespace}).Decode(&q)
+	singleResult := collection.FindOne(ctx, bson.M{"name": name, "namespace": namespace})
+	err := singleResult.Err()
+	switch {
+	case err == mongo.ErrNoDocuments:
+		return restql.SavedQuery{}, restql.ErrQueryNotFoundInDatabase
+	case err != nil:
+		return restql.SavedQuery{}, fmt.Errorf("%w: %s", restql.ErrDatabaseCommunicationFailed, err)
+	}
+
+	err = singleResult.Decode(&q)
 	if err != nil {
-		return restql.SavedQuery{}, err
+		return restql.SavedQuery{}, fmt.Errorf("%w: %s", restql.ErrQueryNotFoundInDatabase, err)
 	}
 
 	if q.Size < revision || revision < 0 {
-		return restql.SavedQuery{}, errors.Errorf("invalid revision for query %s/%s : major revision %d : given revision %d", namespace, name, q.Size, revision)
+		err := errors.Errorf("invalid revision for query %s/%s: major revision %d, given revision %d", namespace, name, q.Size, revision)
+		return restql.SavedQuery{}, fmt.Errorf("%w: %s", restql.ErrQueryNotFoundInDatabase, err)
 	}
 
 	r := q.Revisions[revision-1]
