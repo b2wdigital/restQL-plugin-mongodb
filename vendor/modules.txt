@@ -1,4 +1,4 @@
-# github.com/b2wdigital/restQL-golang/v4 v4.0.0-rc101
+# github.com/b2wdigital/restQL-golang/v4 v4.0.0-rc103
 ## explicit
 github.com/b2wdigital/restQL-golang/v4/internal/domain
 github.com/b2wdigital/restQL-golang/v4/pkg/restql
@@ -63,4 +63,6 @@ golang.org/x/sync/semaphore
 golang.org/x/text/transform
 golang.org/x/text/unicode/norm
 # golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
+## explicit
+# gopkg.in/yaml.v2 v2.3.0
 ## explicit
