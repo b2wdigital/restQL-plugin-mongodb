@@ -130,13 +130,16 @@ func (md *mongoDatabase) FindMappingsForTenant(ctx context.Context, tenantId str
 	err := singleResult.Err()
 	switch {
 	case err == mongo.ErrNoDocuments:
+		log.Error("mappings not found in database", err, "tenant", tenantId)
 		return nil, fmt.Errorf("%w: tenant %s", restql.ErrMappingsNotFoundInDatabase, tenantId)
 	case err != nil:
+		log.Error("database communication failed when fetching mappings", err, "tenant", tenantId)
 		return nil, fmt.Errorf("%w: %s", restql.ErrDatabaseCommunicationFailed, err)
 	}
 
 	err = singleResult.Decode(&t)
 	if err != nil {
+		log.Error("failed to decode mappings from database", err, "tenant", tenantId)
 		return nil, fmt.Errorf("%w: %s", restql.ErrMappingsNotFoundInDatabase, err)
 	}
 
@@ -171,18 +174,23 @@ func (md mongoDatabase) FindQuery(ctx context.Context, namespace string, name st
 	err := singleResult.Err()
 	switch {
 	case err == mongo.ErrNoDocuments:
+		log.Error("query not found in database", err, "namespace", namespace, "name", name, "revision", revision)
 		return restql.SavedQuery{}, restql.ErrQueryNotFoundInDatabase
 	case err != nil:
+		log.Error("database communication failed when fetching query", err, "namespace", namespace, "name", name, "revision", revision)
 		return restql.SavedQuery{}, fmt.Errorf("%w: %s", restql.ErrDatabaseCommunicationFailed, err)
 	}
 
 	err = singleResult.Decode(&q)
 	if err != nil {
+		log.Error("failed to decode query from database", err, "namespace", namespace, "name", name, "revision", revision)
 		return restql.SavedQuery{}, fmt.Errorf("%w: %s", restql.ErrQueryNotFoundInDatabase, err)
 	}
 
 	if q.Size < revision || revision < 0 {
 		err := errors.Errorf("invalid revision for query %s/%s: major revision %d, given revision %d", namespace, name, q.Size, revision)
+
+		log.Error("revision not found", err, "namespace", namespace, "name", name, "revision", revision)
 		return restql.SavedQuery{}, fmt.Errorf("%w: %s", restql.ErrQueryNotFoundInDatabase, err)
 	}
 
