@@ -19,6 +19,32 @@ The plugin depends on the following environment variables:
 - `RESTQL_DATABASE_MAPPINGS_READ_TIMEOUT`: sets the timeout for read mappings from the database, accepts a [Golang Duration string](https://golang.org/pkg/time/#ParseDuration).
 - `RESTQL_DATABASE_QUERY_READ_TIMEOUT`: sets the timeout for read a query from the database, accepts a [Golang Duration string](https://golang.org/pkg/time/#ParseDuration).
 
+## Schema
+
+This plugin uses two collections to store the information needed by restQL.
+
+**tenant**
+It is the collection that store mappings indexed by a tenant name. Its documents have the following   schema.
+
+```json
+{
+  "_id": "MY_TENANT",
+  "mappings": {
+    "hero": "http://hero.api/"
+  }
+}
+```
+
+**query**
+It is the collection that store the queries. Its documents have the following schema.
+```json
+{
+  "name": "fetch-dc-heroes",
+  "namespace": "hero-catalog",
+  "revisions": [{ "text": "from hero with universe = \"DC\" " }]
+}
+```
+
 ## License
 
 The [MIT license](https://mit-license.org/). See the LICENSE file.
