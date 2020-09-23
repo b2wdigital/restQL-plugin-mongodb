@@ -8,7 +8,6 @@ import (
 
 	"go.mongodb.org/mongo-driver/event"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/description"
 )
 
 // Dialer is used to make network connections.
@@ -36,27 +35,26 @@ var DefaultDialer Dialer = &net.Dialer{}
 type Handshaker = driver.Handshaker
 
 type connectionConfig struct {
-	appName        string
-	connectTimeout time.Duration
-	dialer         Dialer
-	handshaker     Handshaker
-	idleTimeout    time.Duration
-	lifeTimeout    time.Duration
-	cmdMonitor     *event.CommandMonitor
-	readTimeout    time.Duration
-	writeTimeout   time.Duration
-	tlsConfig      *tls.Config
-	compressors    []string
-	zlibLevel      *int
-	zstdLevel      *int
-	descCallback   func(description.Server)
+	appName               string
+	connectTimeout        time.Duration
+	dialer                Dialer
+	handshaker            Handshaker
+	idleTimeout           time.Duration
+	lifeTimeout           time.Duration
+	cmdMonitor            *event.CommandMonitor
+	readTimeout           time.Duration
+	writeTimeout          time.Duration
+	tlsConfig             *tls.Config
+	compressors           []string
+	zlibLevel             *int
+	zstdLevel             *int
+	errorHandlingCallback func(error)
 }
 
 func newConnectionConfig(opts ...ConnectionOption) (*connectionConfig, error) {
 	cfg := &connectionConfig{
 		connectTimeout: 30 * time.Second,
 		dialer:         nil,
-		idleTimeout:    10 * time.Minute,
 		lifeTimeout:    30 * time.Minute,
 	}
 
@@ -74,21 +72,12 @@ func newConnectionConfig(opts ...ConnectionOption) (*connectionConfig, error) {
 	return cfg, nil
 }
 
-func withServerDescriptionCallback(callback func(description.Server), opts ...ConnectionOption) []ConnectionOption {
-	return append(opts, ConnectionOption(func(c *connectionConfig) error {
-		c.descCallback = callback
-		return nil
-	}))
-}
-
 // ConnectionOption is used to configure a connection.
 type ConnectionOption func(*connectionConfig) error
 
-// WithConnectionAppName sets the application name which gets sent to MongoDB when it
-// first connects.
-func WithConnectionAppName(fn func(string) string) ConnectionOption {
+func withErrorHandlingCallback(fn func(error)) ConnectionOption {
 	return func(c *connectionConfig) error {
-		c.appName = fn(c.appName)
+		c.errorHandlingCallback = fn
 		return nil
 	}
 }

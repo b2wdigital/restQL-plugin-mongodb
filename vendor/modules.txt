@@ -20,7 +20,7 @@ github.com/pkg/errors
 github.com/xdg/scram
 # github.com/xdg/stringprep v0.0.0-20180714160509-73f8eece6fdc
 github.com/xdg/stringprep
-# go.mongodb.org/mongo-driver v1.3.1
+# go.mongodb.org/mongo-driver v1.3.7
 ## explicit
 go.mongodb.org/mongo-driver/bson
 go.mongodb.org/mongo-driver/bson/bsoncodec
@@ -59,7 +59,7 @@ golang.org/x/crypto/pbkdf2
 # golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 ## explicit
 golang.org/x/sync/semaphore
-# golang.org/x/text v0.3.2
+# golang.org/x/text v0.3.3
 golang.org/x/text/transform
 golang.org/x/text/unicode/norm
 # golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
