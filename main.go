@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"math"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/b2wdigital/restQL-golang/v4/pkg/restql"
@@ -16,6 +18,20 @@ import (
 const mongoPluginName = "MongoDB"
 
 func init() {
+	enabledStr := os.Getenv("RESTQL_DATABASE_ENABLED")
+	if enabledStr != "" {
+		enabled, err := strconv.ParseBool(enabledStr)
+		if err != nil {
+			fmt.Println("[WARN] mongo database plugin disabled")
+			return
+		}
+
+		if !enabled {
+			fmt.Println("[WARN] mongo database plugin disabled")
+			return
+		}
+	}
+
 	restql.RegisterPlugin(restql.PluginInfo{
 		Name: mongoPluginName,
 		Type: restql.DatabasePluginType,
@@ -42,11 +58,11 @@ type query struct {
 }
 
 type mongoDatabase struct {
-	logger  restql.Logger
-	client  *mongo.Client
+	logger          restql.Logger
+	client          *mongo.Client
 	mappingsTimeout time.Duration
-	queryTimeout time.Duration
-	databaseName string
+	queryTimeout    time.Duration
+	databaseName    string
 }
 
 func (md *mongoDatabase) Name() string {
@@ -104,11 +120,11 @@ func NewMongoDatabase(log restql.Logger) (*mongoDatabase, error) {
 	databaseName := os.Getenv("RESTQL_DATABASE_NAME")
 
 	return &mongoDatabase{
-		logger: log,
-		client: client,
+		logger:          log,
+		client:          client,
 		mappingsTimeout: mappingTimeout,
-		queryTimeout: queryTimeout,
-		databaseName: databaseName,
+		queryTimeout:    queryTimeout,
+		databaseName:    databaseName,
 	}, nil
 }
 
@@ -123,10 +139,13 @@ func (md *mongoDatabase) FindMappingsForTenant(ctx context.Context, tenantId str
 	}
 	log.Debug("mappings timeout defined", "timeout", mappingsTimeout)
 
+	maxTime := parseMaxTime(mappingsTimeout)
+
 	var t tenant
 
 	collection := md.client.Database(md.databaseName).Collection("tenant")
-	singleResult := collection.FindOne(ctx, bson.M{"_id": tenantId})
+	opt := options.FindOne().SetMaxTime(maxTime)
+	singleResult := collection.FindOne(ctx, bson.M{"_id": tenantId}, opt)
 	err := singleResult.Err()
 	switch {
 	case err == mongo.ErrNoDocuments:
@@ -167,10 +186,13 @@ func (md mongoDatabase) FindQuery(ctx context.Context, namespace string, name st
 	}
 	log.Debug("query timeout defined", "timeout", queryTimeout)
 
+	maxTime := parseMaxTime(queryTimeout)
+
 	var q query
 
 	collection := md.client.Database(md.databaseName).Collection("query")
-	singleResult := collection.FindOne(ctx, bson.M{"name": name, "namespace": namespace})
+	opt := options.FindOne().SetMaxTime(maxTime)
+	singleResult := collection.FindOne(ctx, bson.M{"name": name, "namespace": namespace}, opt)
 	err := singleResult.Err()
 	switch {
 	case err == mongo.ErrNoDocuments:
@@ -197,4 +219,10 @@ func (md mongoDatabase) FindQuery(ctx context.Context, namespace string, name st
 	r := q.Revisions[revision-1]
 
 	return restql.SavedQuery{Text: r.Text, Deprecated: r.Deprecated}, nil
+}
+
+func parseMaxTime(timeout time.Duration) time.Duration {
+	t := float64(timeout.Nanoseconds())
+	maxTime := time.Duration(math.Ceil(t*0.8)) * time.Nanosecond
+	return maxTime
 }
