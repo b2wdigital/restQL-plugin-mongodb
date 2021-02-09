@@ -18,18 +18,8 @@ import (
 const mongoPluginName = "MongoDB"
 
 func init() {
-	enabledStr := os.Getenv("RESTQL_DATABASE_ENABLED")
-	if enabledStr != "" {
-		enabled, err := strconv.ParseBool(enabledStr)
-		if err != nil {
-			fmt.Println("[WARN] mongo database plugin disabled")
-			return
-		}
-
-		if !enabled {
-			fmt.Println("[WARN] mongo database plugin disabled")
-			return
-		}
+	if !isDatabaseEnabled() {
+		return
 	}
 
 	restql.RegisterPlugin(restql.PluginInfo{
@@ -442,4 +432,23 @@ func parseMaxTime(timeout time.Duration) time.Duration {
 	t := float64(timeout.Nanoseconds())
 	maxTime := time.Duration(math.Ceil(t*0.8)) * time.Nanosecond
 	return maxTime
+}
+
+
+func isDatabaseEnabled() bool {
+	enabledStr := os.Getenv("RESTQL_DATABASE_ENABLED")
+	if enabledStr != "" {
+		enabled, err := strconv.ParseBool(enabledStr)
+		if err != nil {
+			fmt.Println("[WARN] mongo database plugin disabled")
+			return false
+		}
+
+		if !enabled {
+			fmt.Println("[WARN] mongo database plugin disabled")
+			return false
+		}
+	}
+
+	return true
 }
