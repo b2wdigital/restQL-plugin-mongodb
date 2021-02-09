@@ -15,24 +15,27 @@ var urlRegex = regexp.MustCompile("(https?)://([^/]+)([^?]*)\\??(.*)")
 //• Path parameters: can be defined by placing a colon (:) before an identifier in the URL path,
 // for example "http://some.api/:id", will replace ":id" by the value of the "id" parameter
 // in the query definition.
-//• Query parameters: can be defined by placing a colon (:) before an identifier in the URL query,
+//• QueryRevisions parameters: can be defined by placing a colon (:) before an identifier in the URL query,
 // for example "http://some.api?:page", will replace ":page" by the value of the "page" parameter
 // in the query definition creating the URL "http://some.api?page=<value>".
 type Mapping struct {
 	resourceName  string
+	url           string
 	schema        string
 	host          string
 	path          string
 	query         map[string]interface{}
 	pathParams    []string
 	pathParamsSet map[string]struct{}
+
+	Source Source
 }
 
 // NewMapping constructs a Mapping value from a resource name
 // and a canonical URL with optional identifiers for
 // path and query parameters.
 func NewMapping(resource, url string) (Mapping, error) {
-	mapping := Mapping{resourceName: resource}
+	mapping := Mapping{resourceName: resource, url: url}
 
 	urlMatches := urlRegex.FindAllStringSubmatch(url, -1)
 	if len(urlMatches) == 0 {
@@ -86,6 +89,11 @@ func parseQueryParametersInURL(queryParams string) map[string]interface{} {
 	}
 
 	return m
+}
+
+// URL returns the original resource location provided
+func (m Mapping) URL() string {
+	return m.url
 }
 
 // ResourceName return the name associated with the resource URL

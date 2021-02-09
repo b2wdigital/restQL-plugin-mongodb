@@ -3,7 +3,6 @@ package restql
 import (
 	"context"
 	"errors"
-	"github.com/b2wdigital/restQL-golang/v4/internal/domain"
 	"log"
 	"net/http"
 	"net/url"
@@ -109,8 +108,8 @@ type LifecyclePlugin interface {
 	AfterTransaction(ctx context.Context, tr TransactionResponse) context.Context
 	BeforeQuery(ctx context.Context, query string, queryCtx QueryContext) context.Context
 	AfterQuery(ctx context.Context, query string, result map[string]interface{}) context.Context
-	BeforeRequest(ctx context.Context, request HttpRequest) context.Context
-	AfterRequest(ctx context.Context, request HttpRequest, response HttpResponse, err error) context.Context
+	BeforeRequest(ctx context.Context, request HTTPRequest) context.Context
+	AfterRequest(ctx context.Context, request HTTPRequest, response HTTPResponse, err error) context.Context
 }
 
 // TransactionRequest represents a query execution
@@ -129,22 +128,20 @@ type TransactionResponse struct {
 	Body   []byte
 }
 
-// HttpRequest represents a HTTP call to be
-// made to an upstream dependency defined
-// by the mappings.
-type HttpRequest = domain.HTTPRequest
-
-// HttpResponse represents a HTTP call result
-// from an upstream dependency defined
-// by the mappings.
-type HttpResponse = domain.HTTPResponse
-
 // DatabasePlugin is the interface that defines
 // the obligatory operations needed from a database.
 type DatabasePlugin interface {
 	Plugin
-	FindMappingsForTenant(ctx context.Context, tenantID string) ([]Mapping, error)
+
+	FindAllNamespaces(ctx context.Context) ([]string, error)
+	FindQueriesForNamespace(ctx context.Context, namespace string) (map[string][]SavedQuery, error)
+	FindQueryWithAllRevisions(ctx context.Context, namespace string, queryName string) ([]SavedQuery, error)
 	FindQuery(ctx context.Context, namespace string, name string, revision int) (SavedQuery, error)
+	CreateQueryRevision(ctx context.Context, namespace string, queryName string, content string) error
+
+	FindAllTenants(ctx context.Context) ([]string, error)
+	FindMappingsForTenant(ctx context.Context, tenantID string) ([]Mapping, error)
+	SetMapping(ctx context.Context, tenantID string, mappingsName string, url string) error
 }
 
 // Errors returned by Database plugin
@@ -153,3 +150,15 @@ var (
 	ErrQueryNotFoundInDatabase     = errors.New("query not found in database")
 	ErrDatabaseCommunicationFailed = errors.New("failed to communicate with the database")
 )
+
+// ErrMappingsNotFound is the error returned when
+// the resource mappings is not found anywhere
+var ErrMappingsNotFound = errors.New("mappings not found")
+
+// ErrQueryNotFound is the error returned when
+// the query text is not found anywhere
+var ErrQueryNotFound = errors.New("query not found")
+
+// ErrNamespaceNotFound is the error returned when
+// the namespace is not found anywhere
+var ErrNamespaceNotFound = errors.New("namespace not found")
