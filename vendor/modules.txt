@@ -1,13 +1,11 @@
-# github.com/b2wdigital/restQL-golang/v4 v4.0.0-rc103
+# github.com/b2wdigital/restQL-golang/v4 v4.4.0
 ## explicit
-github.com/b2wdigital/restQL-golang/v4/internal/domain
 github.com/b2wdigital/restQL-golang/v4/pkg/restql
 # github.com/go-stack/stack v1.8.0
 github.com/go-stack/stack
 # github.com/golang/snappy v0.0.1
 github.com/golang/snappy
-# github.com/klauspost/compress v1.10.11
-## explicit
+# github.com/klauspost/compress v1.11.0
 github.com/klauspost/compress/fse
 github.com/klauspost/compress/huff0
 github.com/klauspost/compress/snappy
