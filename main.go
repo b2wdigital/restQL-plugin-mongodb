@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/b2wdigital/restQL-golang/v4/pkg/restql"
+	"github.com/b2wdigital/restQL-golang/v5/pkg/restql"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -210,7 +210,6 @@ func (md mongoDatabase) FindQuery(ctx context.Context, namespace string, name st
 	return restql.SavedQuery{Name: name, Text: r.Text, Revision: revision}, nil
 }
 
-
 func (md *mongoDatabase) FindAllNamespaces(ctx context.Context) ([]string, error) {
 	log := restql.GetLogger(ctx)
 
@@ -284,7 +283,7 @@ func (md *mongoDatabase) FindQueriesForNamespace(ctx context.Context, namespace 
 			savedQueries[i] = restql.SavedQuery{
 				Name:     q.Name,
 				Text:     r.Text,
-				Revision: i+1,
+				Revision: i + 1,
 			}
 		}
 
@@ -333,7 +332,7 @@ func (md *mongoDatabase) FindQueryWithAllRevisions(ctx context.Context, namespac
 		queryRevisions[i] = restql.SavedQuery{
 			Name:     q.Name,
 			Text:     r.Text,
-			Revision: i+1,
+			Revision: i + 1,
 		}
 	}
 
@@ -433,7 +432,6 @@ func parseMaxTime(timeout time.Duration) time.Duration {
 	maxTime := time.Duration(math.Ceil(t*0.8)) * time.Nanosecond
 	return maxTime
 }
-
 
 func isDatabaseEnabled() bool {
 	enabledStr := os.Getenv("RESTQL_DATABASE_ENABLED")
