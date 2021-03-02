@@ -3,12 +3,13 @@ package restql_mongodb
 import (
 	"context"
 	"fmt"
-	"github.com/pkg/errors"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"math"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/pkg/errors"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/b2wdigital/restQL-golang/v5/pkg/restql"
 	"go.mongodb.org/mongo-driver/bson"
@@ -152,16 +153,15 @@ func (md *mongoDatabase) FindMappingsForTenant(ctx context.Context, tenantId str
 		return nil, fmt.Errorf("%w: %s", restql.ErrMappingsNotFoundInDatabase, err)
 	}
 
-	i := 0
-	result := make([]restql.Mapping, len(t.Mappings))
+	var result []restql.Mapping
 	for resourceName, url := range t.Mappings {
 		mapping, err := restql.NewMapping(resourceName, url)
 		if err != nil {
+			log.Error("failed to parse resource into mapping", err, "name", resourceName, "url", url)
 			continue
 		}
 
-		result[i] = mapping
-		i++
+		result = append(result, mapping)
 	}
 
 	return result, nil
