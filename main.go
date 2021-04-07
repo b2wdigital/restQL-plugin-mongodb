@@ -3,6 +3,7 @@ package restql_mongodb
 import (
 	"context"
 	"fmt"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"math"
 	"os"
 	"strconv"
@@ -11,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"github.com/b2wdigital/restQL-golang/v5/pkg/restql"
+	"github.com/b2wdigital/restQL-golang/v6/pkg/restql"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -38,13 +39,14 @@ type tenant struct {
 
 type revision struct {
 	Text       string
-	Deprecated bool
+	Archived bool
 }
 
 type query struct {
 	Name      string
 	Namespace string
 	Size      int
+	Archived bool
 	Revisions []revision
 }
 
@@ -167,7 +169,7 @@ func (md *mongoDatabase) FindMappingsForTenant(ctx context.Context, tenantId str
 	return result, nil
 }
 
-func (md mongoDatabase) FindQuery(ctx context.Context, namespace string, name string, revision int) (restql.SavedQuery, error) {
+func (md mongoDatabase) FindQuery(ctx context.Context, namespace string, name string, revision int) (restql.SavedQueryRevision, error) {
 	log := restql.GetLogger(ctx)
 
 	queryTimeout := md.queryTimeout
@@ -185,29 +187,29 @@ func (md mongoDatabase) FindQuery(ctx context.Context, namespace string, name st
 	switch {
 	case err == mongo.ErrNoDocuments:
 		log.Error("query not found in database", err, "namespace", namespace, "name", name, "revision", revision)
-		return restql.SavedQuery{}, restql.ErrQueryNotFoundInDatabase
+		return restql.SavedQueryRevision{}, restql.ErrQueryNotFoundInDatabase
 	case err != nil:
 		log.Error("database communication failed when fetching query", err, "namespace", namespace, "name", name, "revision", revision)
-		return restql.SavedQuery{}, fmt.Errorf("%w: %s", restql.ErrDatabaseCommunicationFailed, err)
+		return restql.SavedQueryRevision{}, fmt.Errorf("%w: %s", restql.ErrDatabaseCommunicationFailed, err)
 	}
 
 	var q query
 	err = singleResult.Decode(&q)
 	if err != nil {
 		log.Error("failed to decode query from database", err, "namespace", namespace, "name", name, "revision", revision)
-		return restql.SavedQuery{}, fmt.Errorf("%w: %s", restql.ErrQueryNotFoundInDatabase, err)
+		return restql.SavedQueryRevision{}, fmt.Errorf("%w: %s", restql.ErrQueryNotFoundInDatabase, err)
 	}
 
 	if q.Size < revision || revision < 0 {
 		err := errors.Errorf("invalid revision for query %s/%s: major revision %d, given revision %d", namespace, name, q.Size, revision)
 
 		log.Error("revision not found", err, "namespace", namespace, "name", name, "revision", revision)
-		return restql.SavedQuery{}, fmt.Errorf("%w: %s", restql.ErrQueryNotFoundInDatabase, err)
+		return restql.SavedQueryRevision{}, fmt.Errorf("%w: %s", restql.ErrQueryNotFoundInDatabase, err)
 	}
 
 	r := q.Revisions[revision-1]
 
-	return restql.SavedQuery{Name: name, Text: r.Text, Revision: revision}, nil
+	return restql.SavedQueryRevision{Name: name, Text: r.Text, Revision: revision}, nil
 }
 
 func (md *mongoDatabase) FindAllNamespaces(ctx context.Context) ([]string, error) {
@@ -247,7 +249,7 @@ func (md *mongoDatabase) FindAllNamespaces(ctx context.Context) ([]string, error
 	return namespace, nil
 }
 
-func (md *mongoDatabase) FindQueriesForNamespace(ctx context.Context, namespace string) (map[string][]restql.SavedQuery, error) {
+func (md *mongoDatabase) FindQueriesForNamespace(ctx context.Context, namespace string, archived bool) ([]restql.SavedQuery, error) {
 	log := restql.GetLogger(ctx)
 
 	queryTimeout := md.queryTimeout
@@ -260,7 +262,14 @@ func (md *mongoDatabase) FindQueriesForNamespace(ctx context.Context, namespace 
 
 	collection := md.client.Database(md.databaseName).Collection("query")
 	opt := options.Find().SetMaxTime(maxTime)
-	cursor, err := collection.Find(ctx, bson.M{"namespace": namespace}, opt)
+	filter := bson.M{
+		"namespace": namespace,
+		"$or": bson.A{
+			bson.M{"archived": archived},
+			bson.M{"revisions": bson.M{"$elemMatch": bson.M{"archived": archived}}},
+		},
+	}
+	cursor, err := collection.Find(ctx, filter, opt)
 	switch {
 	case err == mongo.ErrNoDocuments:
 		log.Error("namespace not found in database", err, "namespace", namespace)
@@ -276,18 +285,30 @@ func (md *mongoDatabase) FindQueriesForNamespace(ctx context.Context, namespace 
 		return nil, err
 	}
 
-	queriesForNamespace := make(map[string][]restql.SavedQuery)
-	for _, q := range queries {
-		savedQueries := make([]restql.SavedQuery, len(q.Revisions))
-		for i, r := range q.Revisions {
-			savedQueries[i] = restql.SavedQuery{
-				Name:     q.Name,
-				Text:     r.Text,
-				Revision: i + 1,
-			}
+	queriesForNamespace := make([]restql.SavedQuery, len(queries))
+	for i, q := range queries {
+		savedQuery := restql.SavedQuery{
+			Namespace: q.Namespace,
+			Name:      q.Name,
+			Archived:  q.Archived,
+			Revisions: []restql.SavedQueryRevision{},
 		}
 
-		queriesForNamespace[q.Name] = savedQueries
+		for i, r := range q.Revisions {
+			if r.Archived != archived  {
+				continue
+			}
+
+			queryRevision := restql.SavedQueryRevision{
+				Name:     q.Name,
+				Text:     r.Text,
+				Archived: r.Archived,
+				Revision: i + 1,
+			}
+			savedQuery.Revisions = append(savedQuery.Revisions, queryRevision)
+		}
+
+		queriesForNamespace[i] = savedQuery
 	}
 
 	log.Debug("namespace queries fetched from database", "queries", queriesForNamespace, "namespace", namespace)
@@ -295,8 +316,10 @@ func (md *mongoDatabase) FindQueriesForNamespace(ctx context.Context, namespace 
 	return queriesForNamespace, nil
 }
 
-func (md *mongoDatabase) FindQueryWithAllRevisions(ctx context.Context, namespace string, queryName string) ([]restql.SavedQuery, error) {
+func (md *mongoDatabase) FindQueryWithAllRevisions(ctx context.Context, namespace string, queryName string, archived bool) (restql.SavedQuery, error) {
 	log := restql.GetLogger(ctx)
+
+	collection := md.client.Database(md.databaseName).Collection("query")
 
 	queryTimeout := md.queryTimeout
 	if queryTimeout > 0 {
@@ -305,18 +328,17 @@ func (md *mongoDatabase) FindQueryWithAllRevisions(ctx context.Context, namespac
 	log.Debug("query timeout defined", "timeout", queryTimeout)
 
 	maxTime := parseMaxTime(queryTimeout)
-
-	collection := md.client.Database(md.databaseName).Collection("query")
 	opt := options.FindOne().SetMaxTime(maxTime)
+
 	singleResult := collection.FindOne(ctx, bson.M{"namespace": namespace, "name": queryName}, opt)
 	err := singleResult.Err()
 	switch {
 	case err == mongo.ErrNoDocuments:
-		log.Error("namespace not found in database", err, "namespace", namespace, "name", queryName)
-		return nil, restql.ErrNamespaceNotFound
+		log.Error("query not found in database", err, "namespace", namespace, "name", queryName)
+		return restql.SavedQuery{}, restql.ErrQueryNotFoundInDatabase
 	case err != nil:
 		log.Error("database communication failed when fetching query", err, "namespace", namespace, "name", queryName)
-		return nil, fmt.Errorf("%w: %s", restql.ErrDatabaseCommunicationFailed, err)
+		return restql.SavedQuery{}, fmt.Errorf("%w: %s", restql.ErrDatabaseCommunicationFailed, err)
 	}
 
 	var q query
@@ -324,21 +346,33 @@ func (md *mongoDatabase) FindQueryWithAllRevisions(ctx context.Context, namespac
 	err = singleResult.Decode(&q)
 	if err != nil {
 		log.Error("failed to decode query from database", err, "namespace", namespace, "name", queryName)
-		return nil, fmt.Errorf("%w: %s", restql.ErrQueryNotFoundInDatabase, err)
+		return restql.SavedQuery{}, fmt.Errorf("%w: %s", restql.ErrQueryNotFoundInDatabase, err)
 	}
 
-	queryRevisions := make([]restql.SavedQuery, len(q.Revisions))
+	queryRevisions := []restql.SavedQueryRevision{}
 	for i, r := range q.Revisions {
-		queryRevisions[i] = restql.SavedQuery{
+		if r.Archived != archived {
+			continue
+		}
+
+		queryRevision := restql.SavedQueryRevision{
 			Name:     q.Name,
 			Text:     r.Text,
+			Archived: r.Archived,
 			Revision: i + 1,
 		}
+		queryRevisions = append(queryRevisions, queryRevision)
 	}
 
 	log.Debug("query revisions fetched from database", "revisions", queryRevisions, "namespace", namespace, "name", queryName)
 
-	return queryRevisions, nil
+	savedQuery := restql.SavedQuery{
+		Namespace: namespace,
+		Name:      queryName,
+		Revisions: queryRevisions,
+	}
+
+	return savedQuery, nil
 }
 
 func (md *mongoDatabase) CreateQueryRevision(ctx context.Context, namespace string, queryName string, content string) error {
@@ -425,6 +459,77 @@ func (md *mongoDatabase) SetMapping(ctx context.Context, tenantID string, resour
 	)
 
 	return err
+}
+
+func (md *mongoDatabase) UpdateQueryArchiving(ctx context.Context, namespace string, queryName string, archived bool) error {
+	log := restql.GetLogger(ctx)
+
+	queryTimeout := md.queryTimeout
+	if queryTimeout > 0 {
+		ctx, _ = context.WithTimeout(ctx, queryTimeout)
+	}
+	log.Debug("query timeout defined", "timeout", queryTimeout)
+
+	collection := md.client.Database(md.databaseName).Collection("query")
+
+	updates := bson.D{
+		{"$set", bson.M{"archived": archived}},
+	}
+	if archived {
+		updates = append(updates, primitive.E{Key: "$set", Value: bson.M{"revisions.$[].archived": archived}})
+	}
+
+	result, err := collection.UpdateOne(
+		ctx,
+		bson.M{"namespace": namespace, "name": queryName},
+		updates,
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	if result.MatchedCount == 0 {
+		return restql.ErrQueryNotFoundInDatabase
+	}
+
+	return nil
+}
+
+func (md *mongoDatabase) UpdateRevisionArchiving(ctx context.Context, namespace string, queryName string, revision int, archived bool) error {
+	log := restql.GetLogger(ctx)
+
+	queryTimeout := md.queryTimeout
+	if queryTimeout > 0 {
+		ctx, _ = context.WithTimeout(ctx, queryTimeout)
+	}
+	log.Debug("query timeout defined", "timeout", queryTimeout)
+
+	revisionIndex := revision - 1
+	collection := md.client.Database(md.databaseName).Collection("query")
+
+	updates := bson.D{
+		{"$set", bson.M{fmt.Sprintf("revisions.%d.archived", revisionIndex): archived}},
+	}
+	if !archived {
+		updates = append(updates, primitive.E{Key: "$set", Value: bson.M{"archived": false}})
+	}
+
+	result, err := collection.UpdateOne(
+		ctx,
+		bson.M{"namespace": namespace, "name": queryName},
+		updates,
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	if result.MatchedCount == 0 {
+		return restql.ErrQueryNotFoundInDatabase
+	}
+
+	return nil
 }
 
 func parseMaxTime(timeout time.Duration) time.Duration {
