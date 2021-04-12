@@ -209,7 +209,7 @@ func (md mongoDatabase) FindQuery(ctx context.Context, namespace string, name st
 
 	r := q.Revisions[revision-1]
 
-	return restql.SavedQueryRevision{Name: name, Text: r.Text, Revision: revision}, nil
+	return restql.SavedQueryRevision{Name: name, Text: r.Text, Revision: revision, Archived: r.Archived}, nil
 }
 
 func (md *mongoDatabase) FindAllNamespaces(ctx context.Context) ([]string, error) {
@@ -265,7 +265,7 @@ func (md *mongoDatabase) FindQueriesForNamespace(ctx context.Context, namespace 
 	filter := bson.M{
 		"namespace": namespace,
 		"$or": bson.A{
-			bson.M{"archived": archived},
+			bson.M{"archived": bson.M{"$ne": !archived}},
 			bson.M{"revisions": bson.M{"$elemMatch": bson.M{"archived": archived}}},
 		},
 	}
@@ -285,6 +285,7 @@ func (md *mongoDatabase) FindQueriesForNamespace(ctx context.Context, namespace 
 		return nil, err
 	}
 
+	log.Debug("raw namespaced queries from db", "value", queries)
 	queriesForNamespace := make([]restql.SavedQuery, len(queries))
 	for i, q := range queries {
 		savedQuery := restql.SavedQuery{
